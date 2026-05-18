@@ -683,9 +683,10 @@ class SensorBarCard extends HTMLElement {
           position: relative;
         }
         .bar-track {
+          --sbcp-bar-radius: 6px;
           position: relative;
           width: 100%;
-          border-radius: 6px;
+          border-radius: var(--sbcp-bar-radius);
           background: var(--secondary-background-color, #e8e8e8);
           overflow: hidden;
         }
@@ -712,6 +713,12 @@ class SensorBarCard extends HTMLElement {
           background: var(--secondary-background-color, #e8e8e8);
           transition: left 0.6s cubic-bezier(0.4,0,0.2,1), width 0.6s cubic-bezier(0.4,0,0.2,1);
           z-index: 3;
+        }
+        .bar-fill {
+          border-radius: var(--sbcp-bar-radius) 0 0 var(--sbcp-bar-radius);
+        }
+        .bar-fill-right {
+          border-radius: 0 var(--sbcp-bar-radius) var(--sbcp-bar-radius) 0;
         }
         .bar-fill.no-anim,
         .bar-fill-right.no-anim { transition: none; }
