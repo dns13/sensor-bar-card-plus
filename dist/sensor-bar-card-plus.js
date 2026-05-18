@@ -17,12 +17,14 @@
  *   color: '#4a9eff'              # bar colour when color_mode is 'single'
  *   animated: true                # smooth bar fill transition on value change
  *   show_peak: true               # show peak marker (highest value seen this session)
+ *   peak_entity: sensor.my_peak_sensor       # optional entity providing the peak marker value
  *   peak_color: '#888'             # colour of the peak marker (default grey)
  *   target: 2400                   # optional fixed target marker (absolute value, same scale as min/max)
  *   target_entity: sensor.my_target_sensor   # optional entity providing the target marker value
  *   target_color: '#4a9eff'        # colour of the target marker (default grey)
  *   above_target_color: '#F44336' # optional color for filled bar section beyond the target
  *   decimal: 1                     # decimal places for displayed value (null = use raw value)
+ *   target_decimal: 1              # decimal places for target label (null = use raw value)
  *   min: 0                        # minimum value
  *   min_entity: sensor.my_min_sensor         # optional entity providing the minimum value
  *   max: 100                      # maximum value
@@ -63,6 +65,7 @@
  *       above_target_color: '#F44336'
  *       animated: true
  *       show_peak: true
+ *       peak_entity: sensor.my_peak_sensor
  *       severity:
  *         - from: 0
  *           to: 50
@@ -147,6 +150,7 @@ class SensorBarCard extends HTMLElement {
       color: '#4a9eff',
       animated: true,
       show_peak: false,
+      peak_entity: null,
       peak_color: '#888',
       target: null,
       target_entity: null,
@@ -155,6 +159,7 @@ class SensorBarCard extends HTMLElement {
       show_target_label: false,
       above_target_color: null, 
       decimal: null,
+      target_decimal: null,
       gradient_stops: null,
       min: 0,
       min_entity: null,
@@ -214,6 +219,7 @@ class SensorBarCard extends HTMLElement {
       color:          entityCfg.color          ?? g.color,
       severity:       entityCfg.severity       ?? g.severity,
       show_peak:      entityCfg.show_peak      ?? g.show_peak,
+      peak_entity:    entityCfg.peak_entity    ?? g.peak_entity ?? null,
       peak_color:     entityCfg.peak_color     ?? g.peak_color,
       target:         entityCfg.target         ?? g.target,
       target_entity:  entityCfg.target_entity  ?? g.target_entity ?? null,
@@ -221,6 +227,7 @@ class SensorBarCard extends HTMLElement {
       show_target_label: entityCfg.show_target_label ?? g.show_target_label,
       above_target_color: entityCfg.above_target_color ?? g.above_target_color ?? null,
       decimal:        entityCfg.decimal        ?? g.decimal,
+      target_decimal: entityCfg.target_decimal ?? g.target_decimal,
       label_width:    entityCfg.label_width    ?? g.label_width,
       gradient_stops: entityCfg.gradient_stops ?? g.gradient_stops,
       unit:           entityCfg.unit           ?? g.unit ?? null,
@@ -239,6 +246,7 @@ class SensorBarCard extends HTMLElement {
         ecfg.min_entity,
         ecfg.max_entity,
         ecfg.baseline_entity,
+        ecfg.peak_entity,
         ecfg.target_entity
       ].filter(Boolean);
       
@@ -323,6 +331,16 @@ class SensorBarCard extends HTMLElement {
       start: Math.min(valuePct, startPct),
       end: Math.max(valuePct, startPct),
     };
+  }
+
+  _getPeakValue(entityId, rawVal, peakEntityId = null) {
+    if (peakEntityId) return this._getEntityNumericValue(peakEntityId);
+    if (!Number.isFinite(rawVal)) return null;
+
+    if (this._peaks[entityId] === undefined || rawVal > this._peaks[entityId]) {
+      this._peaks[entityId] = rawVal;
+    }
+    return this._peaks[entityId];
   }
 
   _hexToRgb(color) {
@@ -1302,6 +1320,14 @@ class SensorBarCard extends HTMLElement {
     return `${display}${this._isTightUnit(cleanUnit) ? '' : ' '}${cleanUnit}`;
   }
 
+  _formatNumericDisplay(value, decimal = null) {
+    if (!Number.isFinite(value)) return String(value);
+    if (decimal !== null && decimal !== undefined) {
+      return Number(value.toFixed(decimal)).toLocaleString();
+    }
+    return value.toLocaleString();
+  }
+
   _formatRightValueMarkup(display, unit, hideUnit = false) {
     if (!unit || hideUnit) {
       return `<span class="value-right-text"><span class="value-right-number">${display}</span></span>`;
@@ -1340,8 +1366,8 @@ class SensorBarCard extends HTMLElement {
     const fillMaskStyles = this._getFillMaskStyles(pct, baselinePct, h);
 
     // Peak marker — chevron top, line full height, configurable colour
-    const peakMarker = ecfg.show_peak && peakPct !== null ? `
-      <div class="peak-marker" style="left:${peakPct}%;--marker-color:${peakMarkerColor};--marker-contrast-color:${peakContrastColor};">
+    const peakMarker = ecfg.show_peak ? `
+      <div class="peak-marker" style="left:${peakPct !== null ? peakPct : 0}%;--marker-color:${peakMarkerColor};--marker-contrast-color:${peakContrastColor};display:${peakPct !== null ? '' : 'none'};">
         <div class="peak-outset"></div>
         <div class="peak-inset"></div>
       </div>` : '';
@@ -1438,7 +1464,7 @@ class SensorBarCard extends HTMLElement {
           ? this._clampPct(((rawVal - safeMin) / range) * 100)
           : baselinePct;
         const color     = this._getColor(pct, ecfg);
-        const display   = isNaN(rawVal) ? stateObj.state : (ecfg.decimal !== null ? parseFloat(rawVal.toFixed(ecfg.decimal)).toLocaleString() : rawVal.toLocaleString());
+        const display   = isNaN(rawVal) ? stateObj.state : this._formatNumericDisplay(rawVal, ecfg.decimal);
         const displayUnit = isNumericState ? unit : '';
         let targetPct   = null;
         if (targetVal !== null) {
@@ -1446,13 +1472,17 @@ class SensorBarCard extends HTMLElement {
         }
         let targetDisplay = null;
         if (targetVal !== null) {
-          targetDisplay = this._formatDisplayWithUnit(targetVal.toLocaleString(), unit);
+          targetDisplay = this._formatDisplayWithUnit(this._formatNumericDisplay(targetVal, ecfg.target_decimal), unit);
         }
         let peakPct = null, peakDisplay = null;
-        if (ecfg.show_peak && !isNaN(rawVal)) {
-          this._peaks[entityCfg.entity] = rawVal;
-          peakPct     = pct;
-          peakDisplay = display;
+        const peakVal = ecfg.show_peak
+          ? this._getPeakValue(entityCfg.entity, rawVal, ecfg.peak_entity)
+          : null;
+        if (peakVal !== null) {
+          peakPct = Math.min(100, Math.max(0, ((peakVal - safeMin) / range) * 100));
+          peakDisplay = ecfg.decimal !== null
+            ? parseFloat(peakVal.toFixed(ecfg.decimal)).toLocaleString()
+            : peakVal.toLocaleString();
         }
         html += this._buildRow(entityCfg, display, displayUnit, pct, baselinePct, color, peakPct, peakDisplay, targetPct, targetDisplay, ecfg.peak_color, ecfg.target_color);
       }
@@ -1495,7 +1525,7 @@ class SensorBarCard extends HTMLElement {
         ? this._clampPct(((rawVal - safeMin) / range) * 100)
         : baselinePct;
       const color   = this._getColor(pct, ecfg);
-      const display = isNaN(rawVal) ? stateObj.state : (ecfg.decimal !== null ? parseFloat(rawVal.toFixed(ecfg.decimal)).toLocaleString() : rawVal.toLocaleString());
+      const display = isNaN(rawVal) ? stateObj.state : this._formatNumericDisplay(rawVal, ecfg.decimal);
       const displayUnit = isNumericState ? unit : '';
 
       const row = rows[rowIdx];
@@ -1547,15 +1577,18 @@ class SensorBarCard extends HTMLElement {
       }
 
       // Update peak marker position
-      if (ecfg.show_peak && !isNaN(rawVal)) {
-        const key = entityCfg.entity;
-        if (this._peaks[key] === undefined || rawVal > this._peaks[key]) {
-          this._peaks[key] = rawVal;
-        }
-        const peakVal = this._peaks[key];
-        const peakPct = Math.min(100, Math.max(0, ((peakVal - safeMin) / range) * 100));
+      if (ecfg.show_peak) {
+        const peakVal = this._getPeakValue(entityCfg.entity, rawVal, ecfg.peak_entity);
         const peakEl  = row.querySelector('.peak-marker');
-        if (peakEl) peakEl.style.left = `${peakPct}%`;
+        if (peakEl) {
+          if (peakVal !== null) {
+            const peakPct = Math.min(100, Math.max(0, ((peakVal - safeMin) / range) * 100));
+            peakEl.style.display = '';
+            peakEl.style.left = `${peakPct}%`;
+          } else {
+            peakEl.style.display = 'none';
+          }
+        }
       }
       // Update target marker position (for dynamic target_entity)
       if (targetVal !== null) {
@@ -1568,7 +1601,7 @@ class SensorBarCard extends HTMLElement {
         
         const targetLabelEl = row.querySelector('.target-value-label');
         if (targetLabelEl) {
-          targetLabelEl.textContent = this._formatDisplayWithUnit(targetVal.toLocaleString(), unit);
+          targetLabelEl.textContent = this._formatDisplayWithUnit(this._formatNumericDisplay(targetVal, ecfg.target_decimal), unit);
           targetLabelEl.style.left = `${targetPct}%`;
           targetLabelEl.style.visibility = 'hidden';
         }

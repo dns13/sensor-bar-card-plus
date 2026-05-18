@@ -4,7 +4,7 @@
 [![GitHub release](https://img.shields.io/github/release/cdelaet/sensor-bar-card-plus.svg)](https://github.com/cdelaet/sensor-bar-card-plus/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A modern sensor visualization card for Home Assistant dashboards, with dynamic min/max/target sources, flexible bar rendering, severity-aware coloring, target and peak markers, and compact information-dense layouts.
+A modern sensor visualization card for Home Assistant dashboards, with dynamic min/max/target/peak sources, flexible bar rendering, severity-aware coloring, target and peak markers, and compact information-dense layouts.
 
 It is built for dashboards where the visual context should follow live Home Assistant data instead of staying hardcoded. Sensor Bar Card Plus works well for power, temperature, humidity, battery, CO2, water flow, response times, quotas, and other numeric sensors, while still fitting cleanly into modern Lovelace layouts with smooth rendering and responsive label behavior.
 
@@ -15,7 +15,7 @@ It is built for dashboards where the visual context should follow live Home Assi
 
 ## Highlights
 
-- <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> **Dynamic min / max / target / baseline entities** for data-driven scales and references
+- <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> **Dynamic min / max / target / peak / baseline entities** for data-driven scales and references
 - 📈 **Target and peak markers** with optional target value labels
 - 🎨 **Severity gradient and severity-based coloring** with `gradient`, `severity`, `single`, and <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> `severity_gradient`
 - <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> **Above-target color** for visually separating the portion beyond a live or fixed threshold
@@ -298,11 +298,12 @@ The card supports:
 
 - fixed `target`
 - dynamic `target_entity`
+- dynamic `peak_entity`
 - optional `show_target_label`
 - optional `above_target_color`
 - optional `show_peak`
 
-The target marker sits on the bottom edge of the bar. The peak marker sits on the top edge. They coexist cleanly and can overlap at the same position without fighting for visibility.
+The target marker sits on the bottom edge of the bar. The peak marker sits on the top edge. They coexist cleanly and can overlap at the same position without fighting for visibility. By default, the peak marker tracks the highest value seen in the current browser session, but `peak_entity` can override that and drive the marker from another entity instead.
 
 ![Dynamic target and above-target color](images/above-target-small.gif)
 
@@ -328,7 +329,7 @@ entities:
 
 ### Target value label <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20">
 
-Set `show_target_label: true` to render the numeric target below the marker. The label is clamped so it stays inside the track area near the edges and follows dynamic target changes smoothly.
+Set `show_target_label: true` to render the numeric target below the marker. The label is clamped so it stays inside the track area near the edges and follows dynamic target changes smoothly. Use `target_decimal` when you want the target label precision to differ from the main value precision.
 
 ### Peak marker example
 
@@ -339,6 +340,22 @@ type: custom:sensor-bar-card-plus
 title: Peak Marker
 label_position: left
 show_peak: true
+entities:
+  - entity: sensor.caravan_power
+    name: Caravan
+    icon: mdi:caravan
+    min: 0
+    max: 3000
+```
+
+### Dynamic `peak_entity`
+
+```yaml
+type: custom:sensor-bar-card-plus
+title: Peak Marker From Entity
+label_position: left
+show_peak: true
+peak_entity: sensor.caravan_peak_power
 entities:
   - entity: sensor.caravan_power
     name: Caravan
@@ -369,15 +386,15 @@ entities:
 
 Peak and target markers can occupy the same position without becoming ambiguous because they live on opposite bar edges. That makes them suitable for shared-threshold visualizations and future multi-reference extensions.
 
-## Dynamic Min / Max / Target / Baseline Entities
+## Dynamic Min / Max / Target / Peak / Baseline Entities
 
 <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20">
 
-You can source `min`, `max`, `target`, and `baseline` from other entities instead of hardcoding them in the card config.
+You can source `min`, `max`, `target`, `peak`, and `baseline` from other entities instead of hardcoding them in the card config.
 
 This is especially useful when the scale and threshold are driven by other helpers, automations, or template sensors.
 
-Why dynamic sources matter: the card can follow real Home Assistant entities for scale and target context instead of baking those values into YAML. That makes the visualization adapt naturally to batteries, grid limits, quotas, thresholds, changing operating modes, and dashboards where the meaning of "full", "safe", or "on target" changes over time.
+Why dynamic sources matter: the card can follow real Home Assistant entities for scale and reference context instead of baking those values into YAML. That makes the visualization adapt naturally to batteries, grid limits, quotas, thresholds, changing operating modes, dashboards where the meaning of "full", "safe", or "on target" changes over time, and sensors that already publish their own rolling or billing-period peak.
 
 ![Dynamic min and max entities](images/example-dynamic-min-max-entity.png)
 
@@ -455,9 +472,10 @@ If both a fixed value and an entity are configured, the entity takes precedence.
 
 ## Formatting, Text States, And Units
 
-The card handles four related display concerns:
+The card handles five related display concerns:
 
 - decimal precision
+- target label decimal precision
 - unit override
 - tight time units like `43s` or `4h`
 - textual states such as `unknown`, `unavailable`, and custom text pass-through
@@ -487,6 +505,23 @@ entities:
     decimal: 2
   - entity: sensor.temperature
     name: Raw (no decimal set)
+```
+
+Use `target_decimal` to control how many decimal places are shown for the optional target label independently from `decimal`.
+
+```yaml
+type: custom:sensor-bar-card-plus
+title: Target Label Precision
+label_position: left
+min: 0
+max: 40
+target: 21.375
+show_target_label: true
+decimal: 1
+target_decimal: 3
+entities:
+  - entity: sensor.temperature
+    name: Sensor
 ```
 
 ### Unit Override
@@ -647,6 +682,7 @@ All options can be set globally at card level and overridden per entity.
 | `severity` | list | built-in default | Used by `severity` and `severity_gradient` | - |
 | `animated` | boolean | `true` | Animate value changes | - |
 | `show_peak` | boolean | `false` | Show peak marker | - |
+| `peak_entity` | string | - | Dynamic peak value entity, overrides live peak tracking | <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> |
 | `peak_color` | string | `#888` | Peak marker color | - |
 | `target` | number | - | Fixed target value | - |
 | `target_entity` | string | - | Dynamic target value entity | <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> |
@@ -662,6 +698,7 @@ All options can be set globally at card level and overridden per entity.
 | `height` | number | `38` | Bar height in pixels | - |
 | `label_width` | number | `100` | Fixed label width for `left` mode | - |
 | `decimal` | number | auto | Decimal places | - |
+| `target_decimal` | number | auto | Decimal places for target label | <img src="images/plus-rainbow-badge.svg" alt="PLUS" height="20"> |
 | `unit` | string | entity unit | Unit override | - |
 
 ### Entity Options
@@ -677,7 +714,7 @@ Each entry in `entities` accepts the card-level options above plus:
 ## Behavior Notes
 
 - Clicking a row opens the native Home Assistant more-info dialog.
-- Peak values are stored in memory and reset when the page reloads.
+- Peak values are stored in memory and reset when the page reloads, unless `peak_entity` is configured.
 - Textual states do not show leftover units.
 - Time units `h`, `m`, and `s` render tight, for example `43s` and `4h`.
 - Responsive fallbacks preserve readability instead of letting labels and values collide.
@@ -706,7 +743,7 @@ Compared to the original card, Sensor Bar Card Plus adds or reworks:
 
 - layout refactor for consistent bar alignment and more truthful row geometry
 - responsive label/value fallback behavior during resize, zoom, and cramped widths
-- dynamic `min_entity`, `max_entity`, `target_entity`, and `baseline_entity`
+- dynamic `min_entity`, `max_entity`, `target_entity`, `peak_entity`, and `baseline_entity`
 - target marker, target value label, and above-target color highlighting
 - synchronized target animation so marker, label, and above-target split move together
 - `severity_gradient` as a separate color mode, alongside proper fixed-band `severity`
