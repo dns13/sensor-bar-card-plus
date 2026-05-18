@@ -657,7 +657,7 @@ class SensorBarCard extends HTMLElement {
         .bar-fill {
           position: absolute;
           top: 0;
-          right: 0;
+          right: -1px;
           height: 100%;
           background: var(--secondary-background-color, #e8e8e8);
           transition: left 0.6s cubic-bezier(0.4,0,0.2,1);
