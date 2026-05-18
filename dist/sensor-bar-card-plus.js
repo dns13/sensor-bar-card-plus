@@ -502,7 +502,7 @@ class SensorBarCard extends HTMLElement {
 
     return {
       left: `left:0;width:${leftWidth}%;height:${h}px;display:${leftWidth > 0 ? 'block' : 'none'};`,
-      right: `right:0;left:auto;width:${rightWidth}%;height:${h}px;display:${rightWidth > 0 ? 'block' : 'none'};`,
+      right: `right:-1px;left:auto;width:calc(${rightWidth}% + 1px);height:${h}px;display:${rightWidth > 0 ? 'block' : 'none'};`,
     };
   }
 
